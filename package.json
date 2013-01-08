@@ -1,0 +1,1 @@
+{"name":"link","version":"1.1.0","main":"dopa.exe","dependencies":{"opabsl.opp":"1.1.0","opa-js-runtime-cps":"1.1.0","dopa.controller.opx":"1.1.0"}}

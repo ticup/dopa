@@ -1,0 +1,1 @@
+{"name":"dopa.view.opx","version":"1.1.0","main":"main.js","dependencies":{"stdlib.web.client.opx":"1.1.0","stdlib.themes.bootstrap.opx":"1.1.0","opabsl.opp":"1.1.0","opa-js-runtime-cps":"1.1.0","dopa.model.opx":"1.1.0"}}

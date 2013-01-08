@@ -1,0 +1,189 @@
+/* Authors: Ida Swarczewskaja, Frederic Ye */
+
+/* Generic */
+html {
+    overflow: hidden;
+}
+body {
+    background: #151515 url("/resources/img/texture-grunge-383838-tile.png") repeat 0 0;
+    color: gray;
+}
+a {
+    color:#18D;
+}
+h4 {
+    color: gray;
+    line-height: 16px;
+    margin-top: 0;
+}
+
+/* Header */
+#header {
+    position: absolute;
+    height: 40px;
+    width: 100%;
+    top: 5px;
+    left: 10px;
+}
+#header h2 {
+    color: white;
+    margin-right: 20px;
+    margin-top: 0;
+}
+.buttons {
+    margin-top: 5px;
+}
+
+/* Main */
+#main {
+    position: absolute;
+    left: 10px;
+    right: 0;
+    bottom: 0;
+    top: 50px;
+}
+#content {
+    position: absolute;
+    top: 0;
+    left: 0px;
+    bottom: 0;
+    right: 240px;
+}
+#login {margin-top: 20px;}
+
+/* Conversation */
+#conversation {
+    background: #151515;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 3px #000 inset;
+    -webkit-box-shadow: 0 1px 3px #000 inset;
+    -moz-box-shadow: 0 1px 3px #000 inset;
+    border-radius: 3px 3px 3px 3px;
+    -moz-border-radius: 3px 3px 3px 3px;
+    -webkit-border-radius: 3px 3px 3px 3px;
+    position: absolute;
+    overflow: auto;
+    bottom: 42px;
+    top: 22px;
+    right: 0;
+    left: 0;
+}
+.line {
+    clear: both;
+    display: block;
+    padding: 5px;
+    text-align: left;
+}
+.line .date {
+    color: #555;
+}
+.user {
+    font-weight: bold;
+    color: #18D;
+    margin-right: 5px;
+}
+
+/* Chatbar */
+#chatbar {
+    position: absolute;
+    left: 0;
+    bottom: 8px;
+    right: 10px;
+}
+#chatbar input#entry {
+    width: 100%;
+}
+
+/* Stats */
+#stats {
+    background: #18D;
+    color: white;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0
+}
+#stats > div {
+    padding: 0 5px;
+    float:left;
+}
+
+/* Drop-area */
+#drop_area {
+    background: #151515;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 8px;
+    height: 40px;
+    border: dotted
+}
+#share {
+    text-align: center;
+    vertical-align: middle;
+    line-height: 40px;
+    cursor: pointer;
+}
+#files {
+  opacity: 0;
+  visibility: hidden;
+  width: 0;
+}
+
+/* Sidebar */
+#sidebar {
+    position: absolute;
+    top: 0;
+    right: 10px;
+    bottom: 10px;
+    width: 220px;
+}
+#user_list {
+    position: absolute;
+    left: 0;
+    top: 20px;
+    right: 0;
+    bottom: 60px;
+    overflow: auto;
+}
+#user_list ul {
+    margin-bottom: 0;
+}
+#user_list ul li {
+    color:#18D;
+}
+
+
+
+/* Rooms */
+#room_list {
+    overflow: auto;
+}
+#room_list ul {
+    margin-bottom: 0;
+}
+#room_list ul li {
+    list-style-type: none;
+    color:#18D;
+}
+#room_list ul li a:hover {
+    list-style-type: none;
+    text-decoration: none;
+    background-color 
+    color:#18D;
+}
+
