@@ -1,3 +1,4 @@
-13/01/08 11:32:16.43 [error]: CHANNEL Local channel(redhgsammpxysctkjnizBD) not found
+13/01/08 18:12:49.10 [error]: CHANNEL Local channel(hmvukmjizmaovrmqjxnyBD) not found
  db wait list, finished
- --bind_ip 0.0.0.0 --dbpath /Users/tim/.opa/mongo/data --fork --logpath /Users/tim/.opa/mongo/mongo.log
+}) not registered PING(4) already present
+a/mongo/data --fork --logpath /Users/tim/.opa/mongo/mongo.log

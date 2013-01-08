@@ -13,11 +13,15 @@ module View {
                    onclick={function(_) {Dom.toggle(#chat)}} >
             Chat 
            </button>
+           <div id=#create_document_container/>
+           <div id=#document_tabs/>
         </div>
       </div>
     </div>
     <div id=#main class=container-fluid>
       {content}
+    </div>
+    <div id=#chat class=container-fluid>
     </div>
   }
 
@@ -109,38 +113,99 @@ module View {
     void
   }
 
+  function show_document(user, room, room_chan, doc_chan) {
+    void
+  }
 
-  function enter_room(user, room) {
+  function enter_room(user, room, room_channel) {
 
-    // will be called when the server sends us his room_channel
-    function show_room(id, name, room_channel, client_channel) {
+    function show_document_tabs(documents) {
 
+      function document_handler(document, message) {
+        match (message) {
+          case { ~doc_chan } :
+            show_document(user, room, room_channel, doc_chan)
 
-
-      function send_message() {
-        text = Dom.get_value(#entry);
-        message = {source:{~user}, ~text, date:Date.now()}
-        Model.send_message(room_channel, {~message})
-        // /dopa/messages[date==message.date] <- message
-        // Model.broadcast({~message});
-        Dom.clear_value(#entry);
+          case {~error} :
+            Client.alert(error)
+        }
       }
 
-      function init_room(_) {
-        // join the room channel
-        Model.join_room(room_channel, user, client_channel)
+      function enter_document(document, _) {
+        client_document_channel client_doc_chan = Session.make_callback(document_handler(document,_))
 
-        // leave before quiting
-        Dom.bind_beforeunload_confirmation(function(_) {
-          Model.leave_room(room_channel, user)
-          none
-        })
+        Model.join_document(room_channel, document.id, user, client_doc_chan)
+        void
       }
 
-      #main =
-      <div id=#chat
-           onready={init_room(_)}>
-        <div id=#sidebar>
+      #document_tabs = List.map(function(doc) {
+          <button class="btn primary"
+                  onclick={enter_document(doc,_)}>{doc.name}</button>
+        }, documents)
+      void
+    }
+
+    function send_message(_) {
+      text = Dom.get_value(#entry);
+      message = {source:{~user}, ~text, date:Date.now()}
+      Model.send_message(room_channel, {~message})
+      // /dopa/messages[date==message.date] <- message
+      // Model.broadcast({~message});
+      Dom.clear_value(#entry);
+    }
+
+    function create_document(_) {
+      id = Random.int(Limits.max_int)
+      name = Dom.get_value(#create_document_name_entry)
+      Model.create_document(room_channel, id, name)
+    }
+
+    // make client session for room channel and request room channel
+    recursive client_room_channel client_channel = Session.make_callback(handle_room)
+
+    // handle incoming messages for client_room_channel
+    and function handle_room(client_room_msg message) {
+      match(message) {
+
+        case {~users} :
+          show_users(users)
+
+        case {~documents} :
+          show_document_tabs(documents)
+
+        case {~message} :
+          message_update(message)
+ 
+      }
+    }
+
+    function init_room(_) {
+
+      // subscribe for the room_channel
+      Model.join_room(room_channel, user, client_channel)
+
+      // leave before quiting, this also unsubscribes for possible document sessions!
+      Dom.bind_beforeunload_confirmation(function(_) {
+        Model.leave_room(room_channel, user)
+        none
+      })
+
+      #create_document_container =
+        <input id=#create_document_name_entry
+               type="text"
+               placeholder="New Document Name"
+               onnewline={create_document(_)}/>
+        <button class="btn primary"
+                onclick={create_document(_)} >
+          New Document
+        </button>
+
+    }
+    Dom.transform([
+      #main = <div id=#document_container />,
+      #chat =
+        <div id=#sidebar
+             onready={init_room(_)} >
           <h4>Users online</h4>
           <div id=#user_list/>
           </div>
@@ -152,62 +217,58 @@ module View {
             <input id=#entry
                    autofocus="autofocus"
                    onready={function(_){Dom.give_focus(#entry)}}
-                   onnewline={function(_){send_message()}}
+                   onnewline={send_message(_)}
                    x-webkit-speech="x-webkit-speech"/>
           </div>
         </div>
-      </div>
-    }
-
-    // make client session for room channel and request room channel
-    recursive client_room_channel client_channel = Session.make_callback(handle_room)
-
-    // handle incoming messages for client_room_channel
-    and function handle_room(client_room_msg message) {
-      match(message) {
-        case {room: {~id, ~name, ~password}, ~room_channel} :
-          show_room(id, name, room_channel, client_channel)
-
-        case {~users} :
-          show_users(users) 
-
-        case {~message} :
-          message_update(message)
-
-        case {~error} :
-          Client.alert("Incorrect password, please try again")
-      }
-    }
-
-    Model.get_room_chan(room.id, room.password, client_channel)
+    ])
+    Dom.show(#chat)
   }
 
 
   function enter_rooms(user) {
 
-    function join_room(room, _) {
+    function join_room(client_chan, room, _) {
       password = Dom.get_value(#join_room_password_entry)
-      enter_room(user, {id: room.id, name: room.name, password: password})
+      // will send the room_channel to our session if succesfully logged in.
+      Model.get_room_chan(room.id, password, client_chan)
+
     }
 
-    function show_rooms({~rooms}) {
-      rooms_html =
-        List.map(function(room) {
-          <li>
-            <a id=#{"room-" + Int.to_string(room.id)}
-               onclick={join_room(room, _)}>
-              {room.name}
-            </a>
-          </li>
-        }, rooms)
-      #room_list = <>Rooms: {List.length(rooms_html)}</> <+>
-                    <div class=line>{rooms_html}</div>
+    // handler for rooms (syncs the room list in realtime)
+    recursive client_rooms_channel client_chan = Session.make_callback(rooms_handler)
+
+    and function rooms_handler(message) {
+      match (message) {
+        case {~rooms} :
+          rooms_html =
+            List.map(function(room) {
+              <li>
+                <a onclick={join_room(client_chan, room, _)}>
+                  {room.name}
+                </a>
+              </li>
+            }, rooms)
+          #room_list = <>Rooms: {List.length(rooms_html)}</> <+>
+                        <div class=line>{rooms_html}</div>
+
+        case {room: room, ~room_channel} :
+          // No longer interested in updates from rooms session
+          Model.unsubscribe_for_rooms(user)
+          enter_room(user, room, room_channel)
+          
+
+        case {~error} :
+          Client.alert(error)
+      }
     }
     
     function init_rooms(_) {
-      client_rooms_channel chan = Session.make_callback(show_rooms)
-      Model.subscribe_for_rooms(user, chan)
+      // assign with model to get updates for the rooms list
+      Model.subscribe_for_rooms(user, client_chan)
 
+      // unsubscribe for rooms session when we join a room
+      // (no longer interested in rooms updates)
       Dom.bind_beforeunload_confirmation(function(_) {
         Model.unsubscribe_for_rooms(user)
         none
@@ -217,16 +278,8 @@ module View {
     function create_room(_) {
       name = Dom.get_value(#new_room_name_entry)
       password = Dom.get_value(#new_room_pwd_entry)
-      // todo, check if id already exists
-      id = Random.int(Limits.max_int)
 
-      room = {~id, ~name, ~password}
-      
-      Model.create_room(room)
-
-      Model.unsubscribe_for_rooms(user)
-
-      enter_room(user, room)
+      Model.create_room(name, password)
     }
 
     #main =
@@ -245,7 +298,8 @@ module View {
             <input id=#new_room_name_entry
                    type="text"
                    placeholder="New Room Name"
-                   autofocus="autofocus" />
+                   autofocus="autofocus"
+                   onnewline={create_room(_)} />
             <input id=#new_room_pwd_entry
                    type="password"
                    placeholder="New Room Password"
