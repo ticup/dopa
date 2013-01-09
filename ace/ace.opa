@@ -29,4 +29,8 @@ module Editor {
   function Ace.instance insert_value(inst, pos, text) {
     %%ace.insertValue%%(inst, pos, text)
   }
+
+  function remove_value(inst, start, end) {
+    %%ace.removeValue%%(inst, start, end)
+  }
 }

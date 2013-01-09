@@ -63,13 +63,16 @@ type message = { source source, string text, Date.date date }
 type client_document_channel = channel(client_document_msg)
 type client_document_msg =
   { string saved } or 
-  { string insert, pos pos }
+  { string text } or
+  { string insert, pos pos } or
+  { string remove, pos start, pos end }
 
 type document_channel = channel(document_msg)
 type document_msg =
   { user join, client_document_channel client_doc_chan } or
   { int leave } or
   { string insert, pos pos, client_document_channel client_doc_chan } or
+  { string remove, pos start, pos end, client_document_channel client_doc_chan} or
   { string save, client_document_channel client_doc_chan } or
   { stop }
 
@@ -205,6 +208,10 @@ module Model {
 
   function insert_text(doc_chan, text, pos, client_doc_chan) {
     Session.send(doc_chan, {insert: text, ~pos, ~client_doc_chan})
+  }
+
+  function remove_text(doc_chan, text, start, end, client_doc_chan) {
+    Session.send(doc_chan, {remove: text, ~start, ~end, ~client_doc_chan})
   }
   
 
@@ -345,8 +352,7 @@ module Model {
 
       case {join: user, ~client_doc_chan} :
         newListeners = IntMap.add(user.id, client_doc_chan, listeners)
-        Debug.jlog(Debug.dump(lines))
-        Session.send(client_doc_chan, {insert: lines_to_string(lines), pos: { row: 0, column: 0}})
+        Session.send(client_doc_chan, {text: lines_to_string(lines)})
         {set: {~id, ~name, ~lines, listeners: newListeners}}
 
       case {leave: id} :
@@ -357,6 +363,17 @@ module Model {
         /dopa/documents[name] <- lines_to_string(lines)
         Session.send(client_doc_chan, {saved: name})
         {unchanged}
+
+      case {insert: "\n", ~pos, ~client_doc_chan} :
+        // get the involved row
+        (line, otherlines) = List.extract(pos.row, lines)
+        // split the row at the involved col
+        (s, e) = List.split_at(Option.get(line), pos.column)
+        // merge the rows back into the lines
+        newlines = List.insert_at(s, pos.row, List.insert_at(e, pos.row, otherlines))
+        // notify all clients to do the same
+        notifyAll({insert: "\n", ~pos}, listeners, client_doc_chan)
+        {set: {~id, ~name, lines: newlines, ~listeners}}
 
       case {~insert, ~pos, ~client_doc_chan} :
         // convert given string to insert into list of string characters
@@ -372,6 +389,42 @@ module Model {
         // notify all clients to do the same
         notifyAll({~insert, ~pos}, listeners, client_doc_chan)
         {set: {~id, ~name, lines: newlines, ~listeners}}
+
+      case {~remove, ~start, ~end, ~client_doc_chan} :
+        // removing text from one row is diff from multiple row deletion
+        if (start.row == end.row) {
+          // get the involved row
+          (line, otherlines) = List.extract(start.row, lines)
+          // split the row until where we is retained
+          (s, _) = List.split_at(Option.get(line), start.column)
+          // split the row from where is retained
+          (_, d) = List.split_at(Option.get(line), end.column)
+          // merge the retained parts
+          newline = List.append(s, d)
+          // merge the row back into the lines
+          newlines = List.insert_at(newline, start.row, otherlines)
+          // notify all clients to do the same
+          notifyAll({~remove, ~start, ~end}, listeners, client_doc_chan)
+          {set: {~id, ~name, lines: newlines, ~listeners}}
+        } else {
+          // get the start row
+          (toplines, otherlines) = List.split_at(lines, start.row)
+          // split the row until where it is retained
+          (s, _) = List.split_at(List.head(otherlines), start.column)
+
+          // get the end row
+          (_, bottomlines) = List.split_at(lines, end.row)
+          // split the row from where is retained
+          (_, d) = List.split_at(List.head(bottomlines), end.column)
+          // merge the retained parts
+          mergeline = List.append(s, d)
+          // merge the row back with the retained lines
+          newlines = List.append(toplines, mergeline +> bottomlines)
+          // notify all clients to do the same
+          notifyAll({~remove, ~start, ~end}, listeners, client_doc_chan)
+          {set: {~id, ~name, lines: newlines, ~listeners}}
+        }
+        
 
       case {stop} :
         Debug.jlog("stopping document")

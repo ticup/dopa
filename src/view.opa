@@ -128,6 +128,16 @@ module View {
       void
     }
 
+    function remove_text(text, start, stop) {
+      Editor.remove_value(inst, start, stop)
+      void
+    }
+
+    function set_text(text) {
+      Editor.set_value(inst, text)
+      void
+    }
+
     // function send_content(_) {
     //   text = Dom.get_value(#document_content)
     //   Model.send_content(doc_chan, text)
@@ -141,12 +151,18 @@ module View {
     function document_handler(message) {
       match (message) {
 
+        case {~text} :
+          set_text(text)
+
         case {saved: name} :
           Client.alert("The document was saved under: " + name)
           void
 
         case {~insert, ~pos} :
           insert_text(insert, pos)
+
+        case {~remove, ~start, ~end} :
+          remove_text(remove, start, end)
       }
     }
 
@@ -191,7 +207,13 @@ module View {
     Editor.on_change(inst, function(e) {
       match(e) {
         case {action: "insertText", ~text, ~start, ~end} :
+          Debug.jlog("removing")
           Model.insert_text(doc_chan, text, start, client_doc_chan)
+          void
+
+        case {action: "removeText", ~text, ~start, ~end} :
+          Debug.jlog("removing")
+          Model.remove_text(doc_chan, text, start, end, client_doc_chan)
           void
 
         default :
