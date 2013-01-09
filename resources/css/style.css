@@ -17,6 +17,10 @@ h4 {
     margin-top: 0;
 }
 
+input {
+    margin-top: 5px;
+}
+
 /* Header */
 #header {
     position: absolute;
@@ -30,9 +34,7 @@ h4 {
     margin-right: 20px;
     margin-top: 0;
 }
-.buttons {
-    margin-top: 5px;
-}
+
 
 /* Main */
 #main {
@@ -61,20 +63,24 @@ h4 {
     margin-left: 10px;
 }
 
-#navbar input {
-    margin-top: 5px;
-}
 
 /* Conversation */
 
 #chat {
-    z-index: 10000;
     display: none;
     position: absolute;
-    left: 10px;
-    right: 0;
+    right: 10px;
     bottom: 0;
     top: 50px;
+    width: 500px;
+}
+
+#chat_content {
+    position: absolute;
+    top: 0;
+    left: 0px;
+    bottom: 0;
+    right: 150px;
 }
 #conversation {
     background: #151515;
@@ -106,6 +112,30 @@ h4 {
     color: #18D;
     margin-right: 5px;
 }
+
+/* Sidebar */
+#sidebar {
+    position: absolute;
+    top: 0;
+    right: 10px;
+    bottom: 10px;
+    width: 130px;
+}
+#user_list {
+    position: absolute;
+    left: 0;
+    top: 20px;
+    right: 0;
+    bottom: 60px;
+    overflow: auto;
+}
+#user_list ul {
+    margin-bottom: 0;
+}
+#user_list ul li {
+    color:#18D;
+}
+
 
 /* Chatbar */
 #chatbar {
@@ -168,28 +198,6 @@ h4 {
   width: 0;
 }
 
-/* Sidebar */
-#sidebar {
-    position: absolute;
-    top: 0;
-    right: 10px;
-    bottom: 10px;
-    width: 220px;
-}
-#user_list {
-    position: absolute;
-    left: 0;
-    top: 20px;
-    right: 0;
-    bottom: 60px;
-    overflow: auto;
-}
-#user_list ul {
-    margin-bottom: 0;
-}
-#user_list ul li {
-    color:#18D;
-}
 
 
 
@@ -210,4 +218,25 @@ h4 {
     background-color 
     color:#18D;
 }
+
+
+
+
+/* Document */
+#document_content {
+    width: 500px;
+    height: 500px;
+    margin-top: 20px;
+}
+
+#editor { 
+        position: absolute;
+        top: 75px;
+        right: 0;
+        bottom: 0;
+        left: 30px;
+        width: 500px;
+        height: 500px;
+        background-color: white;
+    }
 

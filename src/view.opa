@@ -1,4 +1,7 @@
 import stdlib.web.client
+import stdlib.widgets.textarea
+import stdlib.widgets.core
+import ace
 
 module View {
 
@@ -18,11 +21,12 @@ module View {
         </div>
       </div>
     </div>
-    <div id=#main class=container-fluid>
+    <div id=#main>
       {content}
     </div>
-    <div id=#chat class=container-fluid>
-    </div>
+    <div id=#document/>
+    <div id=#chat/>
+    
   }
 
 
@@ -114,27 +118,84 @@ module View {
   }
 
   function show_document(user, room, room_chan, doc_chan) {
+
+    function show_text(text) {
+      Dom.set_value(#document_content, text)
+    }
+
+    function send_content(_) {
+      text = Dom.get_value(#document_content)
+      Model.send_content(doc_chan, text)
+    }
+
+    function save_document(client_doc_chan, _) {
+      name = Dom.get_value(#save_document_name_entry)
+      Model.save_content(doc_chan, name, client_doc_chan)
+    }
+
+    function document_handler(message) {
+      match (message) {
+        case {~text} :
+          show_text(text)
+
+        case {saved: name} :
+          Client.alert("The document was saved under: " + name)
+      }
+    }
+
+    client_document_channel client_doc_chan = Session.make_callback(document_handler)
+    // start listening to the doc_chan
+    Model.subscribe_document(doc_chan, user, client_doc_chan)
+
+    // WTextarea.config config =  { WTextarea.verbose_config with
+    //   disabled_editor_style: WStyler.make_style(css {
+    //       width: 500px; height: 500px;
+    //       border: thin solid gray; overflow: auto; cursor: text;
+    //       padding: 2px;
+    //     }),
+
+    //   enabled_editor_style: WStyler.make_style(css {
+    //       width: 500px; height: 500px;
+    //       border: thin solid #18D; overflow: auto; cursor: text;
+    //       padding: 2px;
+    //     }),
+
+    //   on_text: function (str, pos, cont) {
+    //     Debug.jlog("FOOOOOO")
+    //     Debug.jlog(str)
+    //     Debug.jlog(Debug.dump(pos))
+    //     cont()
+    //   },
+    // }
+
+    // textarea = WTextarea.edit(config, "document", "Let's start programming!")
+    //#main = WCore.make([], [], "document_wrapper", textarea)
+    #document = <div id="editor">
+                  fooooooooooooooooooooooooooooo
+                </div>
+            //   <textarea id=#document_content
+            //             onkeyup={send_content(_)} />
+            //   <input id=#save_document_name_entry
+            //          type="text"
+            //          placeholder="Enter Name" />
+            //   <button class="btn primary"
+            //           onclick={save_document(client_doc_chan,_)} >
+            //     Save
+            //   </button>
+            
+    inst = Editor.edit("editor")
+    // Editor.set_theme(inst, "ace/theme/monokai")
+    Editor.set_mode(inst, "ace/mode/javascript")
     void
   }
 
   function enter_room(user, room, room_channel) {
 
-    function show_document_tabs(documents) {
-
-      function document_handler(document, message) {
-        match (message) {
-          case { ~doc_chan } :
-            show_document(user, room, room_channel, doc_chan)
-
-          case {~error} :
-            Client.alert(error)
-        }
-      }
+    function show_document_tabs(client_room_chan, documents) {
 
       function enter_document(document, _) {
-        client_document_channel client_doc_chan = Session.make_callback(document_handler(document,_))
-
-        Model.join_document(room_channel, document.id, user, client_doc_chan)
+        // will send the room chan to handler
+        Model.get_doc_chan(room_channel, document.id, user, client_room_chan)
         void
       }
 
@@ -171,10 +232,17 @@ module View {
           show_users(users)
 
         case {~documents} :
-          show_document_tabs(documents)
+          show_document_tabs(client_channel, documents)
 
         case {~message} :
           message_update(message)
+
+        case {~doc_chan} :
+         show_document(user, room, room_channel, doc_chan)
+
+        case {~error} :
+          Client.alert(error)
+          void
  
       }
     }
@@ -209,7 +277,7 @@ module View {
           <h4>Users online</h4>
           <div id=#user_list/>
           </div>
-          <div id=#content
+          <div id=#chat_content
                onready={function(_){}}>
           <div id=#stats><div id=#users/><div id=#uptime/><div id=#memory/></div>
           <div id=#conversation/>

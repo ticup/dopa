@@ -1,11 +1,9 @@
 import stdlib.system
 
 database dopa {
-  // // database declarations go here
-  message /messages[{date}]
-  user /users[{id}]
+  // a map of unique string names to string of text
+  stringmap(string) /documents
 }
-
 // Sessions are how you manage 'variables' in OPA-style:
 // http://blog.opalang.org/2011/09/sessions-handling-state-communication.html
 
@@ -38,7 +36,9 @@ type client_room_channel = channel(client_room_msg)
 type client_room_msg = 
   { list(user) users } or
   { list(doc_client) documents } or
-  { message message } 
+  { message message } or
+  { document_channel doc_chan } or
+  { string error }
 
 // room
 //type room = { int id, string name, option(string) password, intmap(user_and_chan) userMap }
@@ -48,7 +48,7 @@ type room_msg =
   { message message } or
   { user leave } or
   { int createdocument, string name } or
-  { int joindocument, user user, client_document_channel client_doc_chan }
+  { int joindocument, user user, client_room_channel client_room_chan }
 
 type userMap = intmap({~user, client_room_channel chan, option(int) doc_id})
 type docMap = intmap({string name, document_channel chan})
@@ -62,24 +62,30 @@ type message = { source source, string text, Date.date date }
 // document
 type client_document_channel = channel(client_document_msg)
 type client_document_msg =
-  { document_channel doc_chan } or
-  { string error }
+  { string text } or
+  { string saved }
 
 type document_channel = channel(document_msg)
 type document_msg =
   { user join, client_document_channel client_doc_chan } or
   { int leave } or
+  { string text } or
+  { string save, client_document_channel client_doc_chan } or
   { stop }
 
+type document = { string name, string text }
 type doc = { int id, string name, document_channel doc_chan }
 type doc_client = { int id, string name }
 
 module Model {
 
-
-  function new_author() {
-    Random.string(8)
+  // notify all helper function, sends given message to all channels of a list
+  function notifyAll(message, listeners) {
+    List.iter(function(chan) {
+      Session.send(chan, message)
+    }, listeners)
   }
+
 
   // rooms
   recursive private rooms_channel rooms = Session.make({roomMap: IntMap.empty, listenerMap: IntMap.empty}, rooms_channel_handler)
@@ -163,8 +169,10 @@ module Model {
     Session.send(rooms, {get: id, ~password, ~client_rooms_chan})
   }
 
-  function join_room(room_chan, user, client_chan) {
-    Session.send(room_chan, {join: user, chan: client_chan})
+
+
+  function join_room(room_chan, user, client_room_chan) {
+    Session.send(room_chan, {join: user, chan: client_room_chan})
   }
 
   function leave_room(room_chan, user) {
@@ -175,29 +183,31 @@ module Model {
     Session.send(room_channel, message)
   }
 
-  function get_document(room_channel, id, client_doc_channel) {
-    Session.send(room_channel, {getdocument: id, ~client_doc_channel})
-  }
-
   function create_document(room_channel, id, name) {
     Session.send(room_channel, {createdocument: id, ~name})
   }
 
-  // function join_document(doc_chan, client_doc_channel) {
-  //   Session.send(doc_chan, {join: client_doc_channel})
-  // }
-
-  function join_document(room_channel, doc_id, user, client_doc_chan) {
-    Session.send(room_channel, {joindocument: doc_id, ~user, ~client_doc_chan})
+  function get_doc_chan(room_channel, doc_id, user, client_room_chan) {
+    Session.send(room_channel, {joindocument: doc_id, ~user, ~client_room_chan})
   }
 
 
-  private function subscribe_document(doc_chan, user, client_doc_chan) {
+
+
+  function subscribe_document(doc_chan, user, client_doc_chan) {
     Session.send(doc_chan, {join: user, ~client_doc_chan})
   }
 
-  private function unsubscribe_document(doc_chan, user_id) {
+  function unsubscribe_document(doc_chan, user_id) {
     Session.send(doc_chan, {leave: user_id})
+  }
+
+  function send_content(doc_chan, text) {
+    Session.send(doc_chan, {~text})
+  }
+
+  function save_content(doc_chan, name, client_doc_chan) {
+    Session.send(doc_chan, {save: name, ~client_doc_chan})
   }
 
   
@@ -227,24 +237,27 @@ module Model {
       notifyAll({users: userList}, userMap)
     }
 
-    function broadCastDocuments(docMap) {
-      docList = docMap
+    function docmap_to_list(docMap) {
+      docMap
         |> IntMap.To.assoc_list(_)
         |> List.map(function((id, {~name, ~doc_chan})) { {~id, ~name} }, _)
         |> List.sort_by(function(d){ d.name }, _)
+    }
 
-      notifyAll({documents: docList}, userMap)
+    function broadCastDocuments(docMap) {
+      notifyAll({documents: docmap_to_list(docMap)}, userMap)
     }
 
     match (room_msg) {
       case {join: user, ~chan} :
         newUsers = IntMap.add(user.id, {~user, ~chan, doc_id: none}, userMap)
-        broadCastUsers(newUsers)
         message = {
           source: {system},
           text : "{user.name} joined the room",
           date : Date.now(),
         }
+        broadCastUsers(newUsers)
+        Session.send(chan, {documents: docmap_to_list(docMap)})
         notifyAll({~message}, newUsers)
         {set: {~id, ~name, userMap: newUsers, ~docMap}}
 
@@ -288,46 +301,54 @@ module Model {
         broadCastDocuments(newDocs)
         {set: {~id, ~name, docMap: newDocs, ~userMap}}
 
-      case {joindocument: id, ~user, ~client_doc_chan} :
+      case {joindocument: new_doc_id, ~user, ~client_room_chan} :
         // set the doc_id of the user to new doc_id
-        IntMap.replace(user.id, function ({~user, ~chan, ~doc_id}) {
+        newUsers = IntMap.replace(user.id, function ({~user, ~chan, ~doc_id}) {
           // remove listener from old document if exists
           Option.map(function (d_id) {
             unsubscribe_document(Option.get(IntMap.get(d_id, docMap)).doc_chan, user.id)
           }, doc_id)
-          // set new doc id
-          {~user, ~chan, doc_id: {some: id}}
-        }, userMap)
 
-        doc = IntMap.get(id, docMap)
-        match (doc) {
-          case {some: {~name, ~doc_chan}} :
-            subscribe_document(doc_chan, user, client_doc_chan)
-            Session.send(client_doc_chan, {~doc_chan})
-          case {none} :
-            Session.send(client_doc_chan, {error: Int.to_string(id) + " does not exist"})
-        }
-        {unchanged}
+          doc = IntMap.get(new_doc_id, docMap)
+          match (doc) {
+            case {some: {~name, ~doc_chan}} :
+              Session.send(client_room_chan, {~doc_chan})
+            case {none} :
+              Session.send(chan, {error: Int.to_string(id) + " does not exist"})
+          }
+          // set new doc id
+          {~user, ~chan, doc_id: {some: new_doc_id}}
+        }, userMap)
+        {set: {~id, ~name, userMap: newUsers, ~docMap}}
     }
   }
 
 
   // document
   private function create_document_channel(id, name) {
-    Session.make({~id, ~name, listeners: IntMap.empty}, document_channel_handler)
+    Session.make({~id, ~name, text: "Let's start programming!", listeners: IntMap.empty}, document_channel_handler)
   }
 
-  private function document_channel_handler({~id, ~name, ~listeners}, message) {
+  private function document_channel_handler({~id, ~name, ~text, ~listeners}, message) {
     match(message) {
 
       case {join: user, ~client_doc_chan} :
         newListeners = IntMap.add(user.id, client_doc_chan, listeners)
-        {set: {~id, ~name, listeners: newListeners}}
+        Session.send(client_doc_chan, {~text})
+        {set: {~id, ~name, ~text, listeners: newListeners}}
 
       case {leave: id} :
         newListeners = IntMap.remove(id, listeners)
-        {set: {~id, ~name, listeners: newListeners}}
+        {set: {~id, ~name, ~text, listeners: newListeners}}
 
+      case {~text} :
+        notifyAll({~text}, IntMap.To.val_list(listeners))
+        {set: {~id, ~name, ~text, ~listeners}}
+
+      case {save: name, ~client_doc_chan} :
+        /dopa/documents[name] <- text
+        Session.send(client_doc_chan, {saved: name})
+        {unchanged}
       case {stop} :
         Debug.jlog("stopping document")
         {stop}

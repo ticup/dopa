@@ -1,0 +1,16 @@
+textareawidget:
+https://github.com/MLstate/opalang/blob/v3523/lib/stdlib/widgets/textarea/textarea.opa#L142
+
+in source code: 
+// TODO: give version, line ID and character position to [on_text]
+        /*config.on_text(String.of_utf8_val(kc),*/
+        /* {line=current_line_number(editor_id)*/
+        /* col=current_position(editor_id)},*/
+        /* (-> flush_buffer(editor_id))))*/
+            /*(-> void )))*/
+            /* The answer (ugly hack, that is) to flushing the buffer _after_
+* the new character has been registered in the field. */
+            /*(-> sleep(42, (-> flush_buffer(editor_id))))))*/
+
+
+on_text wordt dus niet eens opgeroepen in deze versie.
