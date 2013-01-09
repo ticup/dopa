@@ -119,14 +119,19 @@ module View {
 
   function show_document(user, room, room_chan, doc_chan) {
 
-    function show_text(text) {
-      Dom.set_value(#document_content, text)
+    // create editor
+    #document = <div id=#editor/>
+    inst = Editor.edit("editor")
+
+    function insert_text(text, pos) {
+      Editor.insert_value(inst, pos, text)
+      void
     }
 
-    function send_content(_) {
-      text = Dom.get_value(#document_content)
-      Model.send_content(doc_chan, text)
-    }
+    // function send_content(_) {
+    //   text = Dom.get_value(#document_content)
+    //   Model.send_content(doc_chan, text)
+    // }
 
     function save_document(client_doc_chan, _) {
       name = Dom.get_value(#save_document_name_entry)
@@ -135,11 +140,13 @@ module View {
 
     function document_handler(message) {
       match (message) {
-        case {~text} :
-          show_text(text)
 
         case {saved: name} :
           Client.alert("The document was saved under: " + name)
+          void
+
+        case {~insert, ~pos} :
+          insert_text(insert, pos)
       }
     }
 
@@ -170,22 +177,27 @@ module View {
 
     // textarea = WTextarea.edit(config, "document", "Let's start programming!")
     //#main = WCore.make([], [], "document_wrapper", textarea)
-    #document = <div id="editor">
-                  fooooooooooooooooooooooooooooo
+    #document =+ <div id=#save_document>
+                  <input id=#save_document_name_entry
+                         type="text"
+                         placeholder="Enter Name" />
+                  <button class="btn primary"
+                          onclick={save_document(client_doc_chan,_)} >
+                    Save
+                  </button>
                 </div>
-            //   <textarea id=#document_content
-            //             onkeyup={send_content(_)} />
-            //   <input id=#save_document_name_entry
-            //          type="text"
-            //          placeholder="Enter Name" />
-            //   <button class="btn primary"
-            //           onclick={save_document(client_doc_chan,_)} >
-            //     Save
-            //   </button>
-            
-    inst = Editor.edit("editor")
     // Editor.set_theme(inst, "ace/theme/monokai")
     Editor.set_mode(inst, "ace/mode/javascript")
+    Editor.on_change(inst, function(e) {
+      match(e) {
+        case {action: "insertText", ~text, ~start, ~end} :
+          Model.insert_text(doc_chan, text, start, client_doc_chan)
+          void
+
+        default :
+          void
+      }
+      Debug.jlog(Debug.dump(e))})
     void
   }
 

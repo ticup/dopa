@@ -62,30 +62,23 @@ type message = { source source, string text, Date.date date }
 // document
 type client_document_channel = channel(client_document_msg)
 type client_document_msg =
-  { string text } or
-  { string saved }
+  { string saved } or 
+  { string insert, pos pos }
 
 type document_channel = channel(document_msg)
 type document_msg =
   { user join, client_document_channel client_doc_chan } or
   { int leave } or
-  { string text } or
+  { string insert, pos pos, client_document_channel client_doc_chan } or
   { string save, client_document_channel client_doc_chan } or
   { stop }
 
+type pos = { int row, int column }
 type document = { string name, string text }
 type doc = { int id, string name, document_channel doc_chan }
 type doc_client = { int id, string name }
 
 module Model {
-
-  // notify all helper function, sends given message to all channels of a list
-  function notifyAll(message, listeners) {
-    List.iter(function(chan) {
-      Session.send(chan, message)
-    }, listeners)
-  }
-
 
   // rooms
   recursive private rooms_channel rooms = Session.make({roomMap: IntMap.empty, listenerMap: IntMap.empty}, rooms_channel_handler)
@@ -202,14 +195,17 @@ module Model {
     Session.send(doc_chan, {leave: user_id})
   }
 
-  function send_content(doc_chan, text) {
-    Session.send(doc_chan, {~text})
-  }
+  // function send_content(doc_chan, text) {
+  //   Session.send(doc_chan, {~text})
+  // }
 
   function save_content(doc_chan, name, client_doc_chan) {
     Session.send(doc_chan, {save: name, ~client_doc_chan})
   }
 
+  function insert_text(doc_chan, text, pos, client_doc_chan) {
+    Session.send(doc_chan, {insert: text, ~pos, ~client_doc_chan})
+  }
   
 
   // room
@@ -324,31 +320,59 @@ module Model {
   }
 
 
+  
+
+
   // document
   private function create_document_channel(id, name) {
-    Session.make({~id, ~name, text: "Let's start programming!", listeners: IntMap.empty}, document_channel_handler)
+    Session.make({~id, ~name, lines: [["s", "t", "a", "r", "t"]], listeners: IntMap.empty}, document_channel_handler)
   }
 
-  private function document_channel_handler({~id, ~name, ~text, ~listeners}, message) {
+  private function document_channel_handler({~id, ~name, ~lines, ~listeners}, message) {
+    // notify all helper function, sends given message to all channels of a list
+    function notifyAll(message, listeners, chan_sender) {
+      IntMap.iter(function(id, chan) {
+        if (chan != chan_sender)
+          Session.send(chan, message)
+      }, listeners)
+    }
+    
+    function lines_to_string(lines) {
+      String.of_list(function(lst){ List.to_string_using("", "", "", lst) }, "\n", lines)
+    }
+
     match(message) {
 
       case {join: user, ~client_doc_chan} :
         newListeners = IntMap.add(user.id, client_doc_chan, listeners)
-        Session.send(client_doc_chan, {~text})
-        {set: {~id, ~name, ~text, listeners: newListeners}}
+        Debug.jlog(Debug.dump(lines))
+        Session.send(client_doc_chan, {insert: lines_to_string(lines), pos: { row: 0, column: 0}})
+        {set: {~id, ~name, ~lines, listeners: newListeners}}
 
       case {leave: id} :
         newListeners = IntMap.remove(id, listeners)
-        {set: {~id, ~name, ~text, listeners: newListeners}}
-
-      case {~text} :
-        notifyAll({~text}, IntMap.To.val_list(listeners))
-        {set: {~id, ~name, ~text, ~listeners}}
+        {set: {~id, ~name, ~lines, listeners: newListeners}}
 
       case {save: name, ~client_doc_chan} :
-        /dopa/documents[name] <- text
+        /dopa/documents[name] <- lines_to_string(lines)
         Session.send(client_doc_chan, {saved: name})
         {unchanged}
+
+      case {~insert, ~pos, ~client_doc_chan} :
+        // convert given string to insert into list of string characters
+        list(string) chars = String.explode("", insert)
+        // get the involved row
+        (line, otherlines) = List.extract(pos.row, lines)
+        // split the row at the involved col
+        (s, e) = List.split_at(Option.get(line), pos.column)
+        // make a new row, merging the chars at the correct position
+        newline = List.append(s, List.append(chars, e))
+        // merge the row back into the lines
+        newlines = List.insert_at(newline, pos.row, otherlines)
+        // notify all clients to do the same
+        notifyAll({~insert, ~pos}, listeners, client_doc_chan)
+        {set: {~id, ~name, lines: newlines, ~listeners}}
+
       case {stop} :
         Debug.jlog("stopping document")
         {stop}
