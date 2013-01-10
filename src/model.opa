@@ -10,6 +10,7 @@ database dopa {
 // user
 type user = { int id, string name }
 type user_and_chan = { user user, client_room_channel chan }
+type user_doc_cursor = { int id, string name, doc_info doc_info }
 
 // client_rooms_channel
 type client_rooms_channel = channel(client_rooms_msg)
@@ -34,7 +35,8 @@ type room_client = { int id, string name, option(string) password }
 // client_room_channel
 type client_room_channel = channel(client_room_msg)
 type client_room_msg = 
-  { list(user) users } or
+  { list(user_doc_cursor) users } or
+  { user user, doc_info doc_info } or
   { list(doc_client) documents } or
   { message message } or
   { document_channel doc_chan } or
@@ -85,6 +87,7 @@ type pos = { int row, int column }
 type document = { string name, string text }
 type doc = { int id, string name, document_channel doc_chan }
 type doc_client = { int id, string name }
+type doc_info = option({string doc_name, pos cursor})
 
 module Model {
 
@@ -184,7 +187,7 @@ module Model {
     Session.send(room_channel, message)
   }
 
-  function change_cursor(room_channel, pos, user) {
+  function change_cursor(room_channel, user, pos) {
     Session.send(room_channel, {cursor: pos, ~user})
   }
 
@@ -252,7 +255,13 @@ module Model {
     function broadCastUsers(userMap) {
       userList = userMap
         |> IntMap.To.val_list(_)
-        |> List.map(function({~user, ~cursor, ~chan, ~doc_id}) { {id: user.id, name: user.name} }, _)
+        |> List.map(function({~user, ~cursor, ~chan, ~doc_id}) {
+            doc_info = Option.map(function (d_id) { 
+              { ~name, ... } = Option.get(Map.get(d_id, docMap))
+              { doc_name: name, ~cursor }
+            }, doc_id)
+            {id: user.id, name: user.name, ~doc_info}
+          }, _)
         |> List.sort_by(function(u){ u.name }, _)
 
       notifyAll({users: userList}, userMap)
@@ -269,9 +278,17 @@ module Model {
       notifyAll({documents: docmap_to_list(docMap)}, userMap)
     }
 
+    function broadCastUser(user, doc_id, cursor, userMap) {
+      doc_info = Option.map(function (d_id) { 
+                  { ~name, ... } = Option.get(Map.get(d_id, docMap))
+                  { doc_name: name, ~cursor }
+                }, doc_id)
+      notifyAll({~user, ~doc_info}, userMap)
+    }
+
     match (room_msg) {
       case {join: user, ~chan} :
-        newUsers = IntMap.add(user.id, {~user, {row: 0, column: 0}, ~chan, doc_id: none}, userMap)
+        newUsers = IntMap.add(user.id, {~user, cursor: {row: 0, column: 0}, ~chan, doc_id: none}, userMap)
         message = {
           source: {system},
           text : "{user.name} joined the room",
@@ -283,7 +300,7 @@ module Model {
         {set: {~id, ~name, userMap: newUsers, ~docMap}}
 
       case {leave: user} :
-        {~user, ~chan, ~doc_id} = Option.get(IntMap.get(user.id, userMap))
+        {~user, ~cursor, ~chan, ~doc_id} = Option.get(IntMap.get(user.id, userMap))
         newUsers = IntMap.remove(user.id, userMap)
         if (IntMap.is_empty(newUsers)) {
           // remove this room from rooms
@@ -317,7 +334,11 @@ module Model {
         {unchanged}
 
       case {~cursor, ~user} :
-
+        newUsers = IntMap.replace(user.id, function ({~user, cursor: old_cursor, ~chan, ~doc_id}) {
+          broadCastUser(user, doc_id, cursor, userMap)
+          {~user, ~cursor, ~chan, ~doc_id}
+        }, userMap)
+        {set: {~id, ~name, ~docMap, userMap: newUsers}}
 
       case {createdocument: docId, ~name} :
         doc_chan = create_document_channel(docId, name)
@@ -327,7 +348,7 @@ module Model {
 
       case {joindocument: new_doc_id, ~user, ~client_room_chan} :
         // set the doc_id of the user to new doc_id
-        newUsers = IntMap.replace(user.id, function ({~user, ~chan, ~doc_id}) {
+        newUsers = IntMap.replace(user.id, function ({~user, ~cursor, ~chan, ~doc_id}) {
           // remove listener from old document if exists
           Option.map(function (d_id) {
             unsubscribe_document(Option.get(IntMap.get(d_id, docMap)).doc_chan, user.id)
@@ -340,8 +361,8 @@ module Model {
             case {none} :
               Session.send(chan, {error: Int.to_string(id) + " does not exist"})
           }
-          // set new doc id
-          {~user, ~chan, doc_id: {some: new_doc_id}}
+          // set new doc id and cursor to 0 0
+          {~user, cursor: {row: 0, column: 0}, ~chan, doc_id: {some: new_doc_id}}
         }, userMap)
         {set: {~id, ~name, userMap: newUsers, ~docMap}}
     }

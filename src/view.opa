@@ -107,14 +107,41 @@ module View {
     Dom.scroll_to_bottom(#conversation)
   }
 
+  // show the complete list of users and their cursor position
   function show_users(users) {
     users_html =
       List.map(function(user) {
-        <li>{user.name}</li>
+        <li id={"user-" + Int.to_string(user.id)}>
+          {user_and_doc_to_html(user, user.doc_info)}
+        </li>
       }, users)
     #users = <>Users: {List.length(users_html)}</>
     #user_list = <ul>{users_html}</ul>
     void
+  }
+
+  
+
+  // update a single user, only to be executed after show_users was executed!
+  function show_user(user, doc_info) {
+    #{"user-" + Int.to_string(user.id)} = {user_and_doc_to_html(user, doc_info)}
+      
+  }
+
+  function user_and_doc_to_html(user, doc_info) {
+    <span class=user_name>{user.name} </span> <+>
+    <br/> <+>
+    doc_info_to_html(doc_info)
+  }
+
+  function doc_info_to_html(doc_info) {
+    content = Option.switch(function({~doc_name, ~cursor}) {
+        "{doc_name}  ({cursor.row}, {cursor.column})"
+      }, "Not in a document", doc_info)
+
+    <span class=user_document_info>
+       "> {content}"
+    </span>
   }
 
   function show_document(user, room, room_chan, doc_chan) {
@@ -164,17 +191,14 @@ module View {
           void
 
         case {~insert, ~pos} :
-          Debug.jlog(insert + " into " + Debug.dump(pos))
           Editor.insert_value(inst, pos, insert)
           void
 
         case {~remove, ~start, ~end} :
-          Debug.jlog(remove + Debug.dump(start) + " until " + Debug.dump(end))
           Editor.remove_value(inst, start, end)
           void
 
         case {~removelines, ~start, ~end} :
-          Debug.jlog(removelines + Debug.dump(start) + " until " + Debug.dump(end))
           Editor.remove_lines(inst, start, {row: end.row - 1, column: end.column})
           void
 
@@ -247,7 +271,7 @@ module View {
         default :
           void
       }
-      Debug.jlog(Debug.dump(e))})
+    })
     void
   }
 
@@ -292,6 +316,9 @@ module View {
 
         case {~users} :
           show_users(users)
+
+        case {~user, ~doc_info} :
+          show_user(user, doc_info)
 
         case {~documents} :
           show_document_tabs(client_channel, documents)

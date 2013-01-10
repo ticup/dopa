@@ -136,6 +136,11 @@ input {
     color:#18D;
 }
 
+.user_document_info {
+    margin-left: 7px;
+    font-size: 11px;
+}
+
 
 /* Chatbar */
 #chatbar {
