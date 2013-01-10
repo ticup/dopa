@@ -32,7 +32,7 @@ function setTheme(inst, name) {
 }
 
  /**
-  * @register {Ace.instance, string -> Ace.instance}
+  * @register {Ace.instance, string -> void}
   */
 function setMode(inst, name) {
   return inst.getSession().setMode(name);
@@ -44,11 +44,10 @@ function setMode(inst, name) {
  * @register {Ace.instance, (Ace.event -> void) -> Ace.instance}
  */
 function onChange(inst, callback) {
-  return inst.getSession().on('change', function (e) {
+  inst.getSession().on('change', function (e) {
     if (program_triggered)
       return;
 
-    console.log(e);
     var event = {action: e.data.action,
                 start: {row: e.data.range.start.row, column: e.data.range.start.column},
                 end: {row: e.data.range.end.row, column: e.data.range.end.column}
@@ -65,9 +64,19 @@ function onChange(inst, callback) {
   });
 }
 
+/**
+ * @register {Ace.instance, (Ace.position -> void) -> void}
+ */
+function onChangeCursor(inst, callback) {
+  inst.getSession().selection.on('changeCursor', function (e) {
+    var cursor = inst.getSession().selection.getCursor();
+    callback(cursor);
+  });
+}
+
 
 /**
- * @register {Ace.instance, string -> Ace.instance}
+ * @register {Ace.instance, string -> void}
  */
 function setValue(inst, val) {
   return trigger_as_program(function () {
@@ -76,7 +85,7 @@ function setValue(inst, val) {
 }
 
 /**
- * @register {Ace.instance, Ace.position, string -> Ace.instance}
+ * @register {Ace.instance, Ace.position, string -> void}
  */
 function insertValue(inst, pos, text) {
   return trigger_as_program(function () {

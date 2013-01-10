@@ -222,14 +222,18 @@ module View {
                 </div>
     // Editor.set_theme(inst, "ace/theme/monokai")
     Editor.set_mode(inst, "ace/mode/javascript")
+    Editor.on_change_cursor(inst, function(pos) {
+      // cursor updates are sent to the room channel
+      Model.change_cursor(room_chan, user, pos)
+    })
+
     Editor.on_change(inst, function(e) {
+      // document updates are sent to the document channel
       match(e) {
         case {action: "insertText", ~text, ~start, ~end} :
-          Debug.jlog("removing")
           Model.insert_text(doc_chan, text, start, client_doc_chan)
 
         case {action: "removeText", ~text, ~start, ~end} :
-          Debug.jlog("removing")
           Model.remove_text(doc_chan, text, start, end, client_doc_chan)
 
 

@@ -46,6 +46,7 @@ type room_channel = channel(room_msg)
 type room_msg =
   { user join, client_room_channel chan } or
   { message message } or
+  { pos cursor, user user} or
   { user leave } or
   { int createdocument, string name } or
   { int joindocument, user user, client_room_channel client_room_chan }
@@ -183,6 +184,10 @@ module Model {
     Session.send(room_channel, message)
   }
 
+  function change_cursor(room_channel, pos, user) {
+    Session.send(room_channel, {cursor: pos, ~user})
+  }
+
   function create_document(room_channel, id, name) {
     Session.send(room_channel, {createdocument: id, ~name})
   }
@@ -234,12 +239,12 @@ module Model {
   }
 
   // a room has an id, a name and 2 maps
-  // - userMap: maps the id of the users to: {user, client_room_channel, doc_id}
+  // - userMap: maps the id of the users to: {user, cursor, client_room_channel, doc_id}
   // - docMap: maps the id of the documents to: {name, document_channel}
   private function room_channel_handler({~id, ~name, ~userMap, ~docMap}, room_msg) {
 
     function notifyAll(message, userMap) {
-      List.iter(function({~user, ~chan, ~doc_id}) {
+      List.iter(function({~user, ~cursor, ~chan, ~doc_id}) {
         Session.send(chan, message)
       }, IntMap.To.val_list(userMap))
     }
@@ -247,7 +252,7 @@ module Model {
     function broadCastUsers(userMap) {
       userList = userMap
         |> IntMap.To.val_list(_)
-        |> List.map(function({~user, ~chan, ~doc_id}) { {id: user.id, name: user.name} }, _)
+        |> List.map(function({~user, ~cursor, ~chan, ~doc_id}) { {id: user.id, name: user.name} }, _)
         |> List.sort_by(function(u){ u.name }, _)
 
       notifyAll({users: userList}, userMap)
@@ -266,7 +271,7 @@ module Model {
 
     match (room_msg) {
       case {join: user, ~chan} :
-        newUsers = IntMap.add(user.id, {~user, ~chan, doc_id: none}, userMap)
+        newUsers = IntMap.add(user.id, {~user, {row: 0, column: 0}, ~chan, doc_id: none}, userMap)
         message = {
           source: {system},
           text : "{user.name} joined the room",
@@ -310,6 +315,9 @@ module Model {
       case {~message} :
         notifyAll({~message}, userMap)
         {unchanged}
+
+      case {~cursor, ~user} :
+
 
       case {createdocument: docId, ~name} :
         doc_chan = create_document_channel(docId, name)

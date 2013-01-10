@@ -16,19 +16,19 @@ module Editor {
     %%ace.setTheme%%(inst, string)
   }
 
-  function Ace.instance set_mode(inst, string) {
+  function set_mode(inst, string) {
     %%ace.setMode%%(inst, string)
   }
 
-  function Ace.instance on_change(inst, callback) {
+  function on_change(inst, callback) {
     %%ace.onChange%%(inst, callback)
   }
 
-  function Ace.instance set_value(inst, val) {
+  function set_value(inst, val) {
     %%ace.setValue%%(inst, val)
   }
 
-  function Ace.instance insert_value(inst, pos, text) {
+  function insert_value(inst, pos, text) {
     %%ace.insertValue%%(inst, pos, text)
   }
 
@@ -42,5 +42,9 @@ module Editor {
 
   function insert_lines(inst, start, lines) {
     %%ace.insertLines%%(inst, start, lines)
+  }
+
+  function on_change_cursor(inst, callback) {
+    %%ace.onChangeCursor%%(inst, callback)
   }
 }
