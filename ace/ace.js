@@ -3,6 +3,8 @@
 /** @externType Ace.position */
 /** @externType Ace.def_event */
 
+/** @externType list('a) */
+
 // hack: only trigger the given callback when the events performed on the
 // editor are user performed to prevent loops.
 var program_triggered = false;
@@ -47,11 +49,18 @@ function onChange(inst, callback) {
       return;
 
     console.log(e);
-    callback({action: e.data.action,
-              text: e.data.text,
-              start: {row: e.data.range.start.row, column: e.data.range.start.column},
-              end: {row: e.data.range.end.row, column: e.data.range.end.column}
-            });
+    var event = {action: e.data.action,
+                start: {row: e.data.range.start.row, column: e.data.range.start.column},
+                end: {row: e.data.range.end.row, column: e.data.range.end.column}
+              };
+
+    if (e.data.action == "insertLines") {
+      event.lines = js2list(e.data.lines);
+    } else {
+      event.text = e.data.text;
+    }
+
+    callback(event);
 
   });
 }
@@ -75,6 +84,7 @@ function insertValue(inst, pos, text) {
   });
 }
 
+
 /**
  * @register {Ace.instance, Ace.position, Ace.position -> void}
  */
@@ -83,5 +93,25 @@ function removeValue(inst, start, end) {
   var r = new Range(start.row, start.column, end.row, end.column);
   return trigger_as_program(function () {
     return inst.getSession().remove(r);
+  });
+}
+
+/**
+ * @register {Ace.instance, Ace.position, Ace.position -> void}
+ */
+function removeLines(inst, start, end) {
+  return trigger_as_program(function () {
+    return inst.getSession().doc.removeLines(start.row, end.row);
+  });
+}
+
+/**
+ * @register {Ace.instance, Ace.position, opa[list(string)] -> void}
+ */
+function insertLines(inst, start, lines) {
+  return trigger_as_program(function () {
+    console.log(lines);
+    console.log(list2js(lines));
+    return inst.getSession().doc.insertLines(start.row, list2js(lines));
   });
 }

@@ -2,7 +2,9 @@ package ace
 
 type Ace.instance = external
 type Ace.position = { int row, int column }
-type Ace.event = { string action, string text, Ace.position start, Ace.position end }
+type Ace.event =
+  { string action, string text, Ace.position start, Ace.position end } or
+  { string action, list(string) lines, Ace.position start, Ace.position end }
 
 module Editor {
 
@@ -32,5 +34,13 @@ module Editor {
 
   function remove_value(inst, start, end) {
     %%ace.removeValue%%(inst, start, end)
+  }
+
+  function remove_lines(inst, start, end) {
+    %%ace.removeLines%%(inst, start, end)
+  }
+
+  function insert_lines(inst, start, lines) {
+    %%ace.insertLines%%(inst, start, lines)
   }
 }

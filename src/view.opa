@@ -128,13 +128,18 @@ module View {
       void
     }
 
-    function remove_text(text, start, stop) {
-      Editor.remove_value(inst, start, stop)
+    function remove_text(text, start, end) {
+      Editor.remove_value(inst, start, end)
       void
     }
 
     function set_text(text) {
       Editor.set_value(inst, text)
+      void
+    }
+
+    function remove_lines(start, end) {
+      Editor.remove_lines(inst, start, end)
       void
     }
 
@@ -159,10 +164,23 @@ module View {
           void
 
         case {~insert, ~pos} :
-          insert_text(insert, pos)
+          Debug.jlog(insert + " into " + Debug.dump(pos))
+          Editor.insert_value(inst, pos, insert)
+          void
 
         case {~remove, ~start, ~end} :
-          remove_text(remove, start, end)
+          Debug.jlog(remove + Debug.dump(start) + " until " + Debug.dump(end))
+          Editor.remove_value(inst, start, end)
+          void
+
+        case {~removelines, ~start, ~end} :
+          Debug.jlog(removelines + Debug.dump(start) + " until " + Debug.dump(end))
+          Editor.remove_lines(inst, start, {row: end.row - 1, column: end.column})
+          void
+
+        case {~insertlines, ~start} :
+          Editor.insert_lines(inst, start, insertlines)
+          void
       }
     }
 
@@ -209,12 +227,18 @@ module View {
         case {action: "insertText", ~text, ~start, ~end} :
           Debug.jlog("removing")
           Model.insert_text(doc_chan, text, start, client_doc_chan)
-          void
 
         case {action: "removeText", ~text, ~start, ~end} :
           Debug.jlog("removing")
           Model.remove_text(doc_chan, text, start, end, client_doc_chan)
-          void
+
+
+        case {action: "removeLines", ~text, ~start, ~end} :
+          Model.remove_lines(doc_chan, start, end, client_doc_chan)
+
+
+        case {action: "insertLines", ~lines, ~start, ~end} :
+          Model.insert_lines(doc_chan, lines, start, client_doc_chan)
 
         default :
           void

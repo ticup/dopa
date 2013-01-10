@@ -65,14 +65,18 @@ type client_document_msg =
   { string saved } or 
   { string text } or
   { string insert, pos pos } or
-  { string remove, pos start, pos end }
+  { string remove, pos start, pos end } or
+  { string removelines, pos start, pos end } or
+  { list(string) insertlines, pos start }
 
 type document_channel = channel(document_msg)
 type document_msg =
   { user join, client_document_channel client_doc_chan } or
   { int leave } or
   { string insert, pos pos, client_document_channel client_doc_chan } or
-  { string remove, pos start, pos end, client_document_channel client_doc_chan} or
+  { string remove, pos start, pos end, client_document_channel client_doc_chan } or
+  { string removelines, pos start, pos end, client_document_channel client_doc_chan } or
+  { list(string) insertlines, pos start, client_document_channel client_doc_chan } or
   { string save, client_document_channel client_doc_chan } or
   { stop }
 
@@ -213,6 +217,15 @@ module Model {
   function remove_text(doc_chan, text, start, end, client_doc_chan) {
     Session.send(doc_chan, {remove: text, ~start, ~end, ~client_doc_chan})
   }
+
+  function remove_lines(doc_chan, start, end, client_doc_chan) {
+    Session.send(doc_chan, {removelines: "", ~start, ~end, ~client_doc_chan})
+  }
+
+  function insert_lines(doc_chan, lines, start, client_doc_chan) {
+    Session.send(doc_chan, {insertlines: lines, ~start, ~client_doc_chan})
+  }
+
   
 
   // room
@@ -391,40 +404,36 @@ module Model {
         {set: {~id, ~name, lines: newlines, ~listeners}}
 
       case {~remove, ~start, ~end, ~client_doc_chan} :
-        // removing text from one row is diff from multiple row deletion
-        if (start.row == end.row) {
-          // get the involved row
-          (line, otherlines) = List.extract(start.row, lines)
-          // split the row until where we is retained
-          (s, _) = List.split_at(Option.get(line), start.column)
-          // split the row from where is retained
-          (_, d) = List.split_at(Option.get(line), end.column)
-          // merge the retained parts
-          newline = List.append(s, d)
-          // merge the row back into the lines
-          newlines = List.insert_at(newline, start.row, otherlines)
-          // notify all clients to do the same
-          notifyAll({~remove, ~start, ~end}, listeners, client_doc_chan)
-          {set: {~id, ~name, lines: newlines, ~listeners}}
-        } else {
-          // get the start row
-          (toplines, otherlines) = List.split_at(lines, start.row)
-          // split the row until where it is retained
-          (s, _) = List.split_at(List.head(otherlines), start.column)
+        // get the start row
+        (toplines, otherlines) = List.split_at(lines, start.row)
+        // split the row until where it is retained
+        (s, _) = List.split_at(List.head(otherlines), start.column)
 
-          // get the end row
-          (_, bottomlines) = List.split_at(lines, end.row)
-          // split the row from where is retained
-          (_, d) = List.split_at(List.head(bottomlines), end.column)
-          // merge the retained parts
-          mergeline = List.append(s, d)
-          // merge the row back with the retained lines
-          newlines = List.append(toplines, mergeline +> bottomlines)
-          // notify all clients to do the same
-          notifyAll({~remove, ~start, ~end}, listeners, client_doc_chan)
-          {set: {~id, ~name, lines: newlines, ~listeners}}
-        }
-        
+        // get the end row
+        (_, bottomlines) = List.split_at(lines, end.row)
+        // split the row from where is retained
+        (_, d) = List.split_at(List.head(bottomlines), end.column)
+        // merge the retained parts
+        mergeline = List.append(s, d)
+        // merge the row back with the retained lines
+        newlines = List.append(toplines, mergeline +> List.tail(bottomlines))
+        // notify all clients to do the same
+        notifyAll({~remove, ~start, ~end}, listeners, client_doc_chan)
+        {set: {~id, ~name, lines: newlines, ~listeners}}
+
+      case {~removelines, ~start, ~end, ~client_doc_chan} :
+        (s, _) = List.split_at(lines, start.row)
+        (_, e) = List.split_at(lines, end.row)
+        newlines = List.append(s, e)
+        notifyAll({~removelines, ~start, ~end}, listeners, client_doc_chan)
+        {set: {~id, ~name, lines: newlines, ~listeners}}
+
+      case {~insertlines, ~start, ~client_doc_chan} :
+        (s, e) = List.split_at(lines, start.row)
+        insert = List.map(function(str) { String.explode("", str) }, insertlines)
+        newlines = List.append(s, List.append(insert, e))
+        notifyAll({~insertlines, ~start}, listeners, client_doc_chan)
+        {set: {~id, ~name, lines: newlines, ~listeners}}
 
       case {stop} :
         Debug.jlog("stopping document")
