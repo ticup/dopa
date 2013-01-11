@@ -18,8 +18,13 @@ h4 {
 }
 
 input {
-    margin-top: 5px;
+    margin-top: 6px;
 }
+
+button .secondary {
+    padding: 4px 6px;
+}
+
 
 /* Header */
 #header {
@@ -44,13 +49,23 @@ input {
     bottom: 0;
     top: 50px;
 }
-#content {
+
+.editor { 
     position: absolute;
-    top: 0;
-    left: 0px;
-    bottom: 0;
-    right: 240px;
+    width: 400px;
+    height: 500px;
+    left: 20px;
+    top: 20px;
+    border: 1px;
+    overflow: auto;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
 }
+
 #login {margin-top: 20px;}
 
 /* Navbar */
@@ -63,6 +78,10 @@ input {
     margin-left: 10px;
 }
 
+#document_actions_container {
+    padding-right: 20px;
+    border-right: 1px solid #E0E0E0;
+}
 
 /* Conversation */
 
@@ -154,7 +173,7 @@ input {
 }
 
 /* Stats */
-#stats {
+.stats {
     background: #18D;
     color: white;
     box-shadow: 0 1px 5px #000;
@@ -168,7 +187,7 @@ input {
     right: 0;
     top: 0
 }
-#stats > div {
+.stats > div {
     padding: 0 5px;
     float:left;
 }
@@ -209,13 +228,41 @@ input {
 /* Rooms */
 #room_list {
     overflow: auto;
+    background: #151515;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
+    position: absolute;
+    height: 400px;
+    width: 400px;
 }
 #room_list ul {
     margin-bottom: 0;
 }
-#room_list ul li {
+#room_list .line {
     list-style-type: none;
-    color:#18D;
+    color:#555555;
+    background: #333333;
+    color: white;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
+}
+
+#room_list .list {
+    margin-top: 20px;
+}
+
+#room_list a {
+    width: 100%;
 }
 #room_list ul li a:hover {
     list-style-type: none;
@@ -224,6 +271,20 @@ input {
     color:#18D;
 }
 
+#create_room_bar {
+    position: absolute;
+    top: 435px;
+}
+#create_room_bar input {
+    width: 150px;
+}
+
+#content {
+    width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
 
 
 
@@ -235,13 +296,115 @@ input {
 }
 
 #editor { 
-        position: absolute;
-        top: 75px;
-        right: 0;
-        bottom: 0;
-        left: 30px;
-        width: 500px;
-        height: 500px;
-        background-color: white;
-    }
+    position: absolute;
+    top: 30px;
+    right: 0;
+    bottom: 0;
+    left: 30px;
+    width: 500px;
+    height: 500px;
+    background-color: white;
+    -webkit-box-shadow: 0 2px 11px #18D;
+    -moz-box-shadow: 0 2px 13px #18D;
+    box-shadow: 0 2px 13px #18D;
+    -moz-border-radius: 5px 5px 5px 5px;
+    -webkit-border-radius: 5px 5px 5px 5px;
+    border-radius: 5px 5px 5px 5px;
+}
 
+#document_actions {
+    position:absolute;
+    top: 550px;
+    left: 30px;
+}
+
+#document_settings {
+    display: none;
+}
+
+
+/* Document import */
+.document_import_preview {
+    position: absolute;
+    width: 400px;
+    height: 500px;
+    left: 375px;
+    top: 20px;
+    border: 1px;
+    overflow: auto;
+    box-shadow: 0 1px 5px #000;
+    -webkit-box-shadow: 0 1px 5px #000;
+    -moz-box-shadow: 0 1px 5px #000;
+    border-radius:3px 3px 3px 3px;
+    -moz-border-radius:3px 3px 3px 3px;
+    -webkit-border-radius:3px 3px 3px 3px;
+}
+
+.ui-dialog-title {
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.75);
+    color: #333333;
+    font-weight: 200;
+}
+.document_import_list {
+    margin-top: 10px;
+    display: block;
+    width: 350px;
+}
+
+.document_import_line {
+    width: auto;
+    clear: both;
+    display: block;
+}
+.document_import_line * {
+    float: left;
+    display: block;
+}
+
+.document_import_line button {
+    padding: 4px;
+}
+
+.document_import_name {
+    color: #555555;
+    font-size: 20px;
+    font-weight: 200;
+    text-shadow: 0 1px 0 #D2D2D2;
+    line-height: 30px;
+    width: 180px;
+    display: block;
+}
+
+/* document rollback preview */
+
+#document_rollback_vote_preview {
+    height: 450px;
+}
+
+/* state view */
+.document_state_list {
+    display: block;
+    width: 350px;
+}
+
+.document_state_line {
+    width: auto;
+    clear: both;
+    display: block;
+}
+.document_state_line * {
+    float: left;
+    display: block;
+}
+
+
+.document_state_name {
+    color: #777777;
+    font-size: 13px;
+    margin-right: 5px;
+    font-weight: 200;
+    text-shadow: 0 1px 0 #FFFFFF;
+    line-height: 30px;
+    width: 180px;
+    display: block;
+}

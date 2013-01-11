@@ -2,6 +2,9 @@ import stdlib.web.client
 import stdlib.widgets.textarea
 import stdlib.widgets.core
 import ace
+import jquery-ui
+
+
 
 module View {
 
@@ -16,7 +19,7 @@ module View {
                    onclick={function(_) {Dom.toggle(#chat)}} >
             Chat 
            </button>
-           <div id=#create_document_container/>
+           <div id=#document_actions_container/>
            <div id=#document_tabs/>
         </div>
       </div>
@@ -24,7 +27,6 @@ module View {
     <div id=#main>
       {content}
     </div>
-    <div id=#document/>
     <div id=#chat/>
     
   }
@@ -95,6 +97,15 @@ module View {
     }
   }
 
+  function requires_value(cont, value, text) {
+    if (value == "") {
+      Client.alert(text)
+    } else {
+      cont(value);
+    }
+    void
+  }
+
   function message_update(message msg) {
     date = Date.to_formatted_string(Date.default_printer, msg.date)
     time = Date.to_string_time_only(msg.date)
@@ -140,14 +151,14 @@ module View {
       }, "Not in a document", doc_info)
 
     <span class=user_document_info>
-       "> {content}"
+       {content}
     </span>
   }
 
-  function show_document(user, room, room_chan, doc_chan) {
+  function show_document(user, room, doc, room_chan, doc_chan) {
 
     // create editor
-    #document = <div id=#editor/>
+    #document = <div id=#editor class=editor/>
     inst = Editor.edit("editor")
 
     function insert_text(text, pos) {
@@ -170,24 +181,127 @@ module View {
       void
     }
 
-    // function send_content(_) {
-    //   text = Dom.get_value(#document_content)
-    //   Model.send_content(doc_chan, text)
-    // }
-
     function save_document(client_doc_chan, _) {
       name = Dom.get_value(#save_document_name_entry)
-      Model.save_content(doc_chan, name, client_doc_chan)
+      requires_value(function(name) {
+        Model.save_content(doc_chan, name, client_doc_chan)
+      }, name, "Please enter a name for your document")
     }
 
-    function document_handler(message) {
+    function get_doc_settings(client_doc_chan, _) {
+      Model.get_doc_settings(room_chan, doc.id, client_doc_chan)
+      void
+    }
+
+    function save_doc_settings() {
+      interval = Int.of_string_opt(Dom.get_value(#document_interval_setting))
+      Option.lazy_switch(function(interval) {
+        Model.set_doc_settings(room_chan, doc.id, interval)
+        Widgets.close("#document_settings")
+      }, function() {
+        Client.alert("That's not a number, you silly!")
+      }, interval)        
+    }
+
+    function show_doc_settings(doc, interval) {
+      #document_settings =  <label> Save Interval </label> <+>
+                            <input id=#document_interval_setting
+                                  type="text"
+                                  placeholder="{interval}"
+                                  autofocus="autofocus">
+                            </input>
+      Widgets.dialog("#document_settings", "Document settings for {doc.name}")
+      Widgets.option("#document_settings", "width", 300)
+      Widgets.option("#document_settings", "height", 200)
+      Widgets.buttons("#document_settings", [{text: "Save", click: function(){save_doc_settings()}},
+                                             {text: "Cancel", click: function(){Widgets.close("#document_settings")}}])
+    }
+
+   function show_rollback_vote(client_doc_chan, rollbackvote) {
+      function deny_rollback() {
+        Model.deny_rollback_state(doc_chan)
+        Widgets.close("#document_rollback_vote")
+      }
+
+      function accept_rollback() {
+        Model.accept_rollback_state(doc_chan)
+        Widgets.close("#document_rollback_vote")
+      }
+
+      #document_rollback_vote = <div id=#document_rollback_vote_preview class=editor/>
+      prev = Editor.edit("document_rollback_vote_preview")
+      Editor.set_value(prev, rollbackvote.text)
+      Widgets.dialog("#document_rollback_vote", "Rollback to {Date.to_string(rollbackvote.date)} ?")
+      Widgets.option("#document_rollback_vote", "width", 450)
+      Widgets.option("#document_rollback_vote", "height", 600)
+      Widgets.buttons("#document_rollback_vote",
+        [{text: "Accept", click: function(){ accept_rollback() }},
+         {text: "Deny", click: function() { deny_rollback() }}
+        ])
+      Widgets.on("#document_rollback_vote", "close", function() { deny_rollback() })
+      void
+    }
+
+    function show_rollback_commit({~date, ~text}) {
+      Client.alert("Your document has been rolled back to {Date.to_string(date)}")
+      Editor.set_value(inst, text)
+    }
+
+    function start_rollback_state(client_doc_chan, date,_) {
+      Model.start_rollback_state(doc_chan, date, client_doc_chan)
+      void
+    }
+
+    function show_rollback_denied(date) {
+      Client.alert("The rollback for {Date.to_string(date)} was denied.")
+    }
+
+    function get_states(client_doc_chan, _) {
+      Model.get_states(doc_chan, client_doc_chan)
+    }
+
+    function show_states(client_doc_chan, states) {
+
+      function preview_state(text,_) {
+        prev = Editor.edit("document_state_preview")
+        Editor.set_value(prev, text)
+        void
+      }
+
+      documents_html =
+        List.fold(function({~date, ~text}, html) {
+          html <+>
+            <div class=document_state_line>
+              <span class=document_state_name>
+                {Date.to_string(date)}
+              </span>
+              <button class="btn secondary"
+                      onclick={preview_state(text,_)}>
+                View
+              </button>
+              <button class="btn secondary"
+                      onclick={start_rollback_state(client_doc_chan, date,_)}>
+                Rollback
+              </button>
+            </div>
+        }, states, <></>)
+      #document_states = <div id=document_state_list class=document_import_list>{documents_html}</div> <+>
+                         <div id=document_state_preview class="document_import_preview editor"/>
+      Widgets.dialog("#document_states", "Initiate rollback to a previous state")
+      Widgets.option("#document_states", "width", 800)
+      Widgets.option("#document_states", "height", 600)
+      void
+    }
+
+    recursive client_document_channel client_doc_chan = Session.make_callback(document_handler)
+    and function document_handler(client_document_msg message) {
       match (message) {
 
         case {~text} :
           set_text(text)
 
         case {saved: name} :
-          Client.alert("The document was saved under: " + name)
+          Client.alert("The document {name} was successfully saved on the server")
           void
 
         case {~insert, ~pos} :
@@ -205,74 +319,92 @@ module View {
         case {~insertlines, ~start} :
           Editor.insert_lines(inst, start, insertlines)
           void
+
+        case {~docinfo, ~interval} :
+          show_doc_settings(doc, interval)
+          void
+
+        case {~states} :
+          show_states(client_doc_chan, states)
+          void
+
+        case {~rollbackvote} :
+          show_rollback_vote(client_doc_chan, rollbackvote)
+
+        case {~rollback} :
+          show_rollback_commit(rollback)
+
+        case {rollback_denied: date} :
+          show_rollback_denied(date)
       }
     }
 
-    client_document_channel client_doc_chan = Session.make_callback(document_handler)
-    // start listening to the doc_chan
-    Model.subscribe_document(doc_chan, user, client_doc_chan)
+    // Note: an init function is necessary, because the compiler will only know the
+    // client_doc_chan variable in a function (because of its recursive definition), not directly in 
+    // in the body.
+    function init_document(_) {
 
-    // WTextarea.config config =  { WTextarea.verbose_config with
-    //   disabled_editor_style: WStyler.make_style(css {
-    //       width: 500px; height: 500px;
-    //       border: thin solid gray; overflow: auto; cursor: text;
-    //       padding: 2px;
-    //     }),
+      // insert document actions: save, settings and saved states buttons
+      #document_actions =
+        <input id=#save_document_name_entry
+               type="text"
+               placeholder="Enter Document Name" />
+        <button class="btn primary"
+                onclick={save_document(client_doc_chan,_)} >
+          Save
+        </button>
+        <br/>
+        <button class="btn primary"
+                onclick={get_doc_settings(client_doc_chan, _)} >
+          Settings
+        </button>
+        <button class="btn primary"
+                onclick={get_states(client_doc_chan, _)} >
+          Saved States
+        </button>
 
-    //   enabled_editor_style: WStyler.make_style(css {
-    //       width: 500px; height: 500px;
-    //       border: thin solid #18D; overflow: auto; cursor: text;
-    //       padding: 2px;
-    //     }),
+      // Set up the Editor
+      // Editor.set_theme(inst, "ace/theme/monokai")
+      Editor.set_mode(inst, "ace/mode/javascript")
 
-    //   on_text: function (str, pos, cont) {
-    //     Debug.jlog("FOOOOOO")
-    //     Debug.jlog(str)
-    //     Debug.jlog(Debug.dump(pos))
-    //     cont()
-    //   },
-    // }
+      // When the cursor in the Editor changes, propagate this to the 
+      // room channel.
+      Editor.on_change_cursor(inst, function(pos) {
+        // cursor updates are sent to the room channel
+        Model.change_cursor(room_chan, user, pos)
+      })
 
-    // textarea = WTextarea.edit(config, "document", "Let's start programming!")
-    //#main = WCore.make([], [], "document_wrapper", textarea)
-    #document =+ <div id=#save_document>
-                  <input id=#save_document_name_entry
-                         type="text"
-                         placeholder="Enter Name" />
-                  <button class="btn primary"
-                          onclick={save_document(client_doc_chan,_)} >
-                    Save
-                  </button>
+      // Listen for changes on the editor and pass them to document channel
+      Editor.on_change(inst, function(e) {
+        match(e) {
+          case {action: "insertText", ~text, ~start, ~end} :
+            Model.insert_text(doc_chan, text, start, client_doc_chan)
+
+          case {action: "removeText", ~text, ~start, ~end} :
+            Model.remove_text(doc_chan, text, start, end, client_doc_chan)
+
+
+          case {action: "removeLines", ~text, ~start, ~end} :
+            Model.remove_lines(doc_chan, start, end, client_doc_chan)
+
+
+          case {action: "insertLines", ~lines, ~start, ~end} :
+            Model.insert_lines(doc_chan, lines, start, client_doc_chan)
+
+          default :
+            void
+        }
+      })
+      // start listening to the doc_chan
+      Model.subscribe_document(doc_chan, user, client_doc_chan)
+    }
+
+
+    
+
+    #document =+ <div id=#document_actions
+                      onready={init_document(_)} >
                 </div>
-    // Editor.set_theme(inst, "ace/theme/monokai")
-    Editor.set_mode(inst, "ace/mode/javascript")
-    Editor.on_change_cursor(inst, function(pos) {
-      // cursor updates are sent to the room channel
-      Model.change_cursor(room_chan, user, pos)
-    })
-
-    Editor.on_change(inst, function(e) {
-      // document updates are sent to the document channel
-      match(e) {
-        case {action: "insertText", ~text, ~start, ~end} :
-          Model.insert_text(doc_chan, text, start, client_doc_chan)
-
-        case {action: "removeText", ~text, ~start, ~end} :
-          Model.remove_text(doc_chan, text, start, end, client_doc_chan)
-
-
-        case {action: "removeLines", ~text, ~start, ~end} :
-          Model.remove_lines(doc_chan, start, end, client_doc_chan)
-
-
-        case {action: "insertLines", ~lines, ~start, ~end} :
-          Model.insert_lines(doc_chan, lines, start, client_doc_chan)
-
-        default :
-          void
-      }
-    })
-    void
   }
 
   function enter_room(user, room, room_channel) {
@@ -302,9 +434,56 @@ module View {
     }
 
     function create_document(_) {
-      id = Random.int(Limits.max_int)
       name = Dom.get_value(#create_document_name_entry)
-      Model.create_document(room_channel, id, name)
+      Model.create_document(room_channel, name)
+    }
+
+    function import_documents(client_room_chan,_) {
+      Model.get_saved_documents(room_channel, client_room_chan)
+    }
+
+    function show_import_documents(client_room_chan, documents) {
+
+      function preview_document(text,_) {
+        prev = Editor.edit("document_import_preview")
+        Editor.set_value(prev, text)
+      }
+
+      function import_document(name,_) {
+        Model.import_document(room_channel, name)
+      }
+
+      function delete_document(name,_) {
+        Model.delete_saved_document(room_channel, name, client_room_chan)
+      }
+
+      documents_html =
+        Map.fold(function(name, text, html) {
+          html <+>
+            <div class=document_import_line>
+              <span class=document_import_name>
+                {name}
+              </span>
+              <button class="btn secondary"
+                      onclick={preview_document(text,_)}>
+                View
+              </button>
+              <button class="btn secondary"
+                      onclick={import_document(name,_)}>
+                Import
+              </button>
+              <button class="btn secondary"
+                      onclick={delete_document(name,_)}>
+                Delete
+              </button>
+            </div>
+        }, documents, <></>)
+      #document_import = <div id=#document_import_list class=document_import_list>{documents_html}</div> <+>
+                         <div id=#document_import_preview class="document_import_preview editor"/>
+      Widgets.dialog("#document_import", "Import a document into the room")
+      Widgets.option("#document_import", "width", 800)
+      Widgets.option("#document_import", "height", 600)
+      void
     }
 
     // make client session for room channel and request room channel
@@ -316,18 +495,27 @@ module View {
 
         case {~users} :
           show_users(users)
+          void
 
         case {~user, ~doc_info} :
           show_user(user, doc_info)
+          void
 
         case {~documents} :
           show_document_tabs(client_channel, documents)
+          void
 
         case {~message} :
           message_update(message)
+          void
 
-        case {~doc_chan} :
-         show_document(user, room, room_channel, doc_chan)
+        case {~import} :
+          show_import_documents(client_channel, import)
+          void
+
+        case {~doc, ~doc_chan} :
+          show_document(user, room, doc, room_channel, doc_chan)
+          void
 
         case {~error} :
           Client.alert(error)
@@ -347,19 +535,29 @@ module View {
         none
       })
 
-      #create_document_container =
+      #document_actions_container =
         <input id=#create_document_name_entry
                type="text"
                placeholder="New Document Name"
                onnewline={create_document(_)}/>
         <button class="btn primary"
                 onclick={create_document(_)} >
-          New Document
+          Create Document
+        </button>
+        <button class="btn primary"
+                onclick={import_documents(client_channel,_)} >
+          Import Document
         </button>
 
     }
     Dom.transform([
-      #main = <div id=#document_container />,
+      #main = <div id=#document_container>
+                <div id=#document/>
+                <div id=#document_import/>
+                <div id=#document_states/>
+                <div id=#document_settings/>
+                <div id=#document_rollback_vote/>
+              </div>,
       #chat =
         <div id=#sidebar
              onready={init_room(_)} >
@@ -368,7 +566,7 @@ module View {
           </div>
           <div id=#chat_content
                onready={function(_){}}>
-          <div id=#stats><div id=#users/><div id=#uptime/><div id=#memory/></div>
+          <div class=stats><div id=#users/><div id=#uptime/><div id=#memory/></div>
           <div id=#conversation/>
           <div id=#chatbar>
             <input id=#entry
@@ -386,10 +584,15 @@ module View {
   function enter_rooms(user) {
 
     function join_room(client_chan, room, _) {
-      password = Dom.get_value(#join_room_password_entry)
-      // will send the room_channel to our session if succesfully logged in.
-      Model.get_room_chan(room.id, password, client_chan)
-
+      password = if (room.password) {
+        Client.prompt("Please enter password for {room.name}", "")
+      } else { {some: ""} }
+      
+      Option.map(function(pwd) {
+        // will send the room_channel to our session if succesfully logged in.
+        Model.get_room_chan(room.id, pwd, client_chan)
+      }, password)
+      void
     }
 
     // handler for rooms (syncs the room list in realtime)
@@ -400,21 +603,20 @@ module View {
         case {~rooms} :
           rooms_html =
             List.map(function(room) {
-              <li>
+              <div class=list>
                 <a onclick={join_room(client_chan, room, _)}>
                   {room.name}
                 </a>
-              </li>
+              </div>
             }, rooms)
-          #room_list = <>Rooms: {List.length(rooms_html)}</> <+>
-                        <div class=line>{rooms_html}</div>
+          #room_list = <div class=stats><div>Rooms: {List.length(rooms_html)}</div></div> <+>
+                        <div>{rooms_html}</div>
 
         case {room: room, ~room_channel} :
           // No longer interested in updates from rooms session
           Model.unsubscribe_for_rooms(user)
           enter_room(user, room, room_channel)
           
-
         case {~error} :
           Client.alert(error)
       }
@@ -434,32 +636,26 @@ module View {
 
     function create_room(_) {
       name = Dom.get_value(#new_room_name_entry)
-      password = Dom.get_value(#new_room_pwd_entry)
-
-      Model.create_room(name, password)
+      requires_value(function(name) {
+        password = Dom.get_value(#new_room_pwd_entry)
+        Model.create_room(name, password)
+      }, name, "Please enter a name for your room")
     }
 
     #main =
       <div id=#content
            onready={init_rooms(_)} >
-          <h4>Rooms</h4>
+          <h4>Click a room to join or create a new one</h4>
           <div id=#room_list/>
-          <div id=#join_room_bar>
-            <input id=#join_room_password_entry
-                   type="password"
-                   placeholder="Enter Room Password and click Room"
-                   autofocus="autofocus"
-                   onready={function(_){Dom.give_focus(#join_room_password_entry)}} />
-          </div>
           <div id=#create_room_bar>
             <input id=#new_room_name_entry
                    type="text"
-                   placeholder="New Room Name"
+                   placeholder="Room Name"
                    autofocus="autofocus"
                    onnewline={create_room(_)} />
             <input id=#new_room_pwd_entry
                    type="password"
-                   placeholder="New Room Password"
+                   placeholder="Room Password"
                    onnewline={create_room(_)} />
             <button class="btn primary"
                     onclick={create_room(_)}>Create</button>
@@ -471,11 +667,13 @@ module View {
   // login
   function login(_) {
     name = Dom.get_value(#name)
-    user = {
+    requires_value(function(name) {
+      user = {
       id: Random.int(Limits.max_int),
       name: name
-    }
-    enter_rooms(user)
+      }
+      enter_rooms(user)
+    }, name, "Please enter a nickname to proceed")
   }
 
   // Start page
@@ -485,7 +683,7 @@ module View {
       <div id=#login class="form-inline">
         <input id=#name
                type="text"
-               placeholder="Name"
+               placeholder="Enter Nickname"
                autofocus="autofocus"
                onready={function(_){Dom.give_focus(#name)}}
                onnewline={login}/>

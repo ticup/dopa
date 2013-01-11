@@ -1,4 +1,3 @@
-13/01/10 12:14:23.54 [error]: CHANNEL Local channel(wvgqdlrhxbcsluycrccpBJ) not found
+13/01/11 12:10:04.81 [error]: CHANNEL Local channel(sfoihtrnkxybdorcuodgBJ) not found
  db wait list, finished
-}) not registered PING(4) already present
-a/mongo/data --fork --logpath /Users/tim/.opa/mongo/mongo.log
+ --bind_ip 0.0.0.0 --dbpath /Users/tim/.opa/mongo/data --fork --logpath /Users/tim/.opa/mongo/mongo.log

@@ -1,0 +1,1 @@
+{"name":"dopa.model.opx","version":"1.1.0","main":"main.js","dependencies":{"stdlib.database.mongo.opx":"1.1.0","opabsl.opp":"1.1.0","opa-js-runtime-cps":"1.1.0"}}
